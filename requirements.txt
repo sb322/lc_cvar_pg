@@ -1,0 +1,5 @@
+torch
+gymnasium[classic-control]
+gymnasium[box2d]
+numpy
+matplotlib

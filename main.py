@@ -4,7 +4,7 @@ import torch.nn as nn
 import torch.optim as optim
 import gymnasium as gym
 import matplotlib
-matplotlib.use("Agg")  # safe on HPC / headless
+matplotlib.use("Agg")  # important for HPC / headless
 import matplotlib.pyplot as plt
 
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
@@ -381,7 +381,6 @@ def estimate_cvar(costs, alpha_cvar):
 def dual_eta_update(costs, lambda_dual, eta, alpha_cvar,
                     alpha_lambda, alpha_eta, beta_constraint):
     C = torch.tensor(costs, device=device)
-    N = C.shape[0]
 
     cvar_est = estimate_cvar(costs, alpha_cvar)
 
@@ -403,19 +402,17 @@ def dual_eta_update(costs, lambda_dual, eta, alpha_cvar,
 
 def lunar_cost_fn(obs, action, reward, next_obs, done):
     """
-    Design a risk-sensitive cost for LunarLander.
+    Risk-sensitive cost for LunarLander-v3.
     Heavily penalize crashes; penalize unstable attitude and high speed.
     """
-    # next_obs: [x, y, vx, vy, theta, vtheta, leg1, leg2]
     x, y, vx, vy, theta, vtheta, leg1, leg2 = next_obs
 
     cost = 0.0
-    # penalize large velocities and angle (risky behavior)
-    cost += 0.5 * (abs(vx) + abs(vy))
-    cost += 0.3 * abs(theta) + 0.1 * abs(vtheta)
+    cost += 0.5 * (abs(vx) + abs(vy))      # risky velocities
+    cost += 0.3 * abs(theta) + 0.1 * abs(vtheta)  # tilt & spin
 
     crashed = False
-    if done and reward < 0:  # crash episode in default env
+    if done and reward < 0:  # crash under default env reward
         cost += 100.0
         crashed = True
 
@@ -433,7 +430,7 @@ def train_lc_cvar_pg(num_iterations=400,
                      alpha_cvar=0.9,
                      beta_constraint=60.0):
 
-    env = gym.make("LunarLander-v2")
+    env = gym.make("LunarLander-v3")
     state_dim = env.observation_space.shape[0]
     action_dim = env.action_space.n
     latent_dim = 16
@@ -495,7 +492,7 @@ def train_cvar_no_baseline(num_iterations=400,
                            alpha_cvar=0.9,
                            beta_constraint=60.0):
 
-    env = gym.make("LunarLander-v2")
+    env = gym.make("LunarLander-v3")
     state_dim = env.observation_space.shape[0]
     action_dim = env.action_space.n
     latent_dim = 16
@@ -553,7 +550,7 @@ def train_vanilla_pg(num_iterations=400,
                      T_max=500,
                      gamma=0.99):
 
-    env = gym.make("LunarLander-v2")
+    env = gym.make("LunarLander-v3")
     state_dim = env.observation_space.shape[0]
     action_dim = env.action_space.n
     latent_dim = 16
@@ -612,9 +609,9 @@ if __name__ == "__main__":
     ret_lc, cvar_lc, crash_lc = train_lc_cvar_pg(
         num_iterations=num_iters, beta_constraint=60.0)
 
-    # ---- Plots ----
     iters = np.arange(num_iters)
 
+    # Return comparison
     plt.figure()
     plt.plot(iters, ret_van, label="Vanilla PG")
     plt.plot(iters, ret_cvar_nb, label="CVaR-PG (no baseline)")
@@ -622,9 +619,10 @@ if __name__ == "__main__":
     plt.xlabel("Iteration")
     plt.ylabel("Average return")
     plt.legend()
-    plt.title("LunarLander: Return")
+    plt.title("LunarLander-v3: Return")
     plt.savefig("ll_return_compare.png", dpi=150)
 
+    # CVaR comparison
     plt.figure()
     plt.plot(iters, cvar_van, label="Vanilla PG")
     plt.plot(iters, cvar_cvar_nb, label="CVaR-PG (no baseline)")
@@ -632,9 +630,10 @@ if __name__ == "__main__":
     plt.xlabel("Iteration")
     plt.ylabel("Estimated CVaR (alpha=0.9)")
     plt.legend()
-    plt.title("LunarLander: CVaR of cost")
+    plt.title("LunarLander-v3: CVaR of cost")
     plt.savefig("ll_cvar_compare.png", dpi=150)
 
+    # Crash-rate comparison
     plt.figure()
     plt.plot(iters, crash_van, label="Vanilla PG")
     plt.plot(iters, crash_cvar_nb, label="CVaR-PG (no baseline)")
@@ -642,5 +641,5 @@ if __name__ == "__main__":
     plt.xlabel("Iteration")
     plt.ylabel("Crash rate")
     plt.legend()
-    plt.title("LunarLander: Crash rate")
+    plt.title("LunarLander-v3: Crash rate")
     plt.savefig("ll_crash_compare.png", dpi=150)
